@@ -1,0 +1,39 @@
+# Android / Gradle
+.gradle/
+.kotlin/
+build/
+app/build/
+local.properties
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE / editor
+.idea/
+.vscode/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Generated research outputs
+artifacts/
+*.log
+
+# Large binary / model files (tracked via DVC or stored externally)
+*.pt
+*.pth
+*.bin
+*.npz
+*.npy
+
+# Training run scripts (local convenience, not part of source)
+run_nas.bat
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+*.ipynb

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="benchmark_black">#FF000000</color>
+    <color name="benchmark_white">#FFFFFFFF</color>
+    <color name="benchmark_cyan">#FF00E5FF</color>
+    <color name="benchmark_blue">#FF1E88E5</color>
+</resources>

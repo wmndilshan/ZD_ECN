@@ -1,0 +1,14 @@
+## Research Purpose
+
+Real-time deformation of parametric human models on edge devices remains constrained by a fundamental mismatch between visual fidelity requirements and mobile GPU resource budgets. Linear Blend Skinning (LBS), while computationally efficient and widely deployed in interactive graphics pipelines, produces well-known artifacts such as volume loss and candy-wrapper distortions under large joint rotations. Recent machine-learning-based deformers improve geometric accuracy by learning pose-conditioned corrective displacements, but their practical deployment on mobile and embedded platforms is limited by dependence on heavyweight inference runtimes such as ONNX Runtime, TensorRT, and related framework stacks. These systems introduce large binary footprints, nontrivial initialization latency, additional memory pressure, and execution models that are poorly aligned with the constraints of OpenGL ES-based mobile rendering pipelines. As a result, current ML deformers are difficult to integrate into latency-sensitive AR/VR and real-time avatar applications running on edge hardware.
+
+This research addresses that gap by developing a zero-dependency ML deformer that performs neural inference directly inside OpenGL ES compute shaders using shader storage buffer objects (SSBOs), without any external machine-learning framework. The purpose of this work is to demonstrate that a compact multilayer perceptron can be embedded natively within the graphics stack to deliver low-latency corrective deformation on mobile GPUs while preserving deformation quality. By eliminating the ML runtime layer entirely, the proposed approach seeks to reduce inference latency, minimize memory and binary overhead, and provide a deployment model that is materially better suited to edge graphics systems. The significance of this work lies in its potential to make high-quality real-time human deformation feasible for mobile graphics, AR/VR avatars, and on-device character animation, while also contributing a new systems perspective to edge AI and graphics pipeline design in which neural inference is treated as a first-class shader workload rather than a separate runtime subsystem.
+
+### Objectives
+
+- Develop a three-layer MLP deformer that executes entirely inside OpenGL ES 3.1+ compute shaders on mobile GPUs.
+- Eliminate dependence on external ML runtimes by storing model parameters in SSBOs and performing inference natively in the graphics pipeline.
+- Reduce end-to-end inference latency and initialization overhead relative to framework-based mobile inference pipelines.
+- Reduce memory footprint and binary size to improve suitability for thermally and memory constrained edge devices.
+- Preserve deformation quality by generating pose-conditioned corrective displacements that mitigate LBS artifacts.
+- Provide an experimentally reproducible Android benchmarking pipeline for latency, throughput, and GPU timing analysis on real devices.

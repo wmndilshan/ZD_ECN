@@ -1,0 +1,3 @@
+D:/GraphicsResearch/android_compute_benchmark/app/.cxx/Debug/2h5q2f3x/arm64-v8a/CMakeFiles/android_compute_benchmark.dir
+D:/GraphicsResearch/android_compute_benchmark/app/.cxx/Debug/2h5q2f3x/arm64-v8a/CMakeFiles/edit_cache.dir
+D:/GraphicsResearch/android_compute_benchmark/app/.cxx/Debug/2h5q2f3x/arm64-v8a/CMakeFiles/rebuild_cache.dir

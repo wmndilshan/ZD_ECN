@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Benchmark" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">@color/benchmark_black</item>
+        <item name="android:statusBarColor">@color/benchmark_black</item>
+        <item name="android:navigationBarColor">@color/benchmark_black</item>
+        <item name="colorPrimary">@color/benchmark_blue</item>
+        <item name="colorPrimaryDark">@color/benchmark_black</item>
+        <item name="colorAccent">@color/benchmark_cyan</item>
+    </style>
+</resources>
