@@ -146,11 +146,27 @@ def build_sameframe_targets(
     model_data: dict[str, np.ndarray],
     poses: np.ndarray,
     batch_size: int,
+    target_memmap_path: Path | None = None,
+    progress_every: int = 1000,
 ) -> tuple[np.ndarray, np.ndarray]:
     betas = np.zeros((poses.shape[0], NUM_BETAS), dtype=np.float32)
     identity = np.eye(3, dtype=np.float32)
-    target_chunks: list[np.ndarray] = []
+    if target_memmap_path is None:
+        target_delta_mm: np.ndarray = np.empty((poses.shape[0], VERTEX_COUNT * 3), dtype=np.float32)
+    else:
+        target_memmap_path.parent.mkdir(parents=True, exist_ok=True)
+        if target_memmap_path.exists():
+            target_memmap_path.unlink()
+        target_delta_mm = np.lib.format.open_memmap(
+            target_memmap_path,
+            mode="w+",
+            dtype=np.float32,
+            shape=(poses.shape[0], VERTEX_COUNT * 3),
+        )
+
+    target_magnitude = np.empty(poses.shape[0], dtype=np.float32)
     target_magnitude_chunks: list[np.ndarray] = []
+    next_progress = progress_every if progress_every > 0 else poses.shape[0] + 1
 
     for start in range(0, poses.shape[0], batch_size):
         pose = poses[start:start + batch_size].astype(np.float32)
@@ -165,10 +181,19 @@ def build_sameframe_targets(
         v_ref = skin_with_transforms(v_shaped + pose_offsets, transforms, model_data["lbs_weights"])
         v_base = skin_with_transforms(v_shaped, transforms, model_data["lbs_weights"])
         target_mm = (v_ref - v_base) * 1000.0
-        target_chunks.append(target_mm.reshape(pose.shape[0], VERTEX_COUNT * 3).astype(np.float32))
-        target_magnitude_chunks.append(np.linalg.norm(target_mm, axis=2).mean(axis=1).astype(np.float32))
+        end = start + pose.shape[0]
+        target_delta_mm[start:end] = target_mm.reshape(pose.shape[0], VERTEX_COUNT * 3).astype(np.float32)
+        target_magnitude[start:end] = np.linalg.norm(target_mm, axis=2).mean(axis=1).astype(np.float32)
 
-    return np.concatenate(target_chunks), np.concatenate(target_magnitude_chunks)
+        processed = end
+        if progress_every > 0 and (processed >= next_progress or processed == poses.shape[0]):
+            print(f"[target-build] processed {processed}/{poses.shape[0]} poses", flush=True)
+            while next_progress <= processed:
+                next_progress += progress_every
+
+    if hasattr(target_delta_mm, "flush"):
+        target_delta_mm.flush()
+    return target_delta_mm, target_magnitude
 
 
 def split_indices(samples: int, val_ratio: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -192,22 +217,26 @@ def write_dataset(
     train_indices: np.ndarray,
     val_indices: np.ndarray,
     metadata: dict[str, Any],
+    compressed: bool,
 ) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     betas = np.zeros((poses.shape[0], NUM_BETAS), dtype=np.float32)
-    np.savez_compressed(
+    save = np.savez_compressed if compressed else np.savez
+    print(f"[dataset-save] writing {output} compressed={compressed}", flush=True)
+    save(
         output,
-        pose_axis_angle=poses.astype(np.float32),
-        theta_rot6d=theta_rot6d.astype(np.float32),
-        target_delta_mm=target_delta_mm.astype(np.float32),
-        target_magnitude_mm=target_magnitude_mm.astype(np.float32),
+        pose_axis_angle=np.ascontiguousarray(poses.astype(np.float32)),
+        theta_rot6d=np.ascontiguousarray(theta_rot6d.astype(np.float32)),
+        target_delta_mm=target_delta_mm,
+        target_magnitude_mm=np.ascontiguousarray(target_magnitude_mm.astype(np.float32)),
         betas=betas,
         source_keys=source_keys,
-        source_rows=source_rows.astype(np.int64),
-        train_indices=train_indices.astype(np.int64),
-        val_indices=val_indices.astype(np.int64),
+        source_rows=np.ascontiguousarray(source_rows.astype(np.int64)),
+        train_indices=np.ascontiguousarray(train_indices.astype(np.int64)),
+        val_indices=np.ascontiguousarray(val_indices.astype(np.int64)),
     )
+    print(f"[dataset-save] finished {output}", flush=True)
     metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
 
 
@@ -222,6 +251,11 @@ def main() -> None:
     parser.add_argument("--smpl-batch-size", type=int, default=20)
     parser.add_argument("--output", type=Path, default=Path("data/dataset_sameframe_pose_30k.npz"))
     parser.add_argument("--metadata", type=Path)
+    parser.add_argument("--target-memmap", type=Path)
+    parser.add_argument("--progress-every", type=int, default=1000)
+    parser.add_argument("--compressed", dest="compressed", action="store_true")
+    parser.add_argument("--uncompressed", dest="compressed", action="store_false")
+    parser.set_defaults(compressed=None)
     args = parser.parse_args()
 
     if not 0.0 < args.val_ratio < 1.0:
@@ -240,7 +274,18 @@ def main() -> None:
         )
 
     model_data = load_model(args.model_path)
-    target_delta_mm, target_magnitude_mm = build_sameframe_targets(model_data, poses, args.smpl_batch_size)
+    use_memmap = args.target_memmap is not None or poses.shape[0] > 5000
+    target_memmap_path = args.target_memmap
+    if use_memmap and target_memmap_path is None:
+        target_memmap_path = args.output.parent / f".{args.output.stem}_target_delta_mm.tmp.npy"
+    compressed = args.compressed if args.compressed is not None else poses.shape[0] <= 5000
+    target_delta_mm, target_magnitude_mm = build_sameframe_targets(
+        model_data,
+        poses,
+        args.smpl_batch_size,
+        target_memmap_path=target_memmap_path if use_memmap else None,
+        progress_every=args.progress_every,
+    )
     train_indices, val_indices = split_indices(poses.shape[0], args.val_ratio, args.seed)
 
     metadata_path = args.metadata or args.output.with_suffix(".metadata.json")
@@ -264,6 +309,11 @@ def main() -> None:
         "target_coordinate_frame": "posed frame; both sides use the same posed joint transforms",
         "target_units": "millimeters",
         "sample_method": "natural/unweighted random sampling; no synthetic stratification",
+        "storage": {
+            "compressed_npz": bool(compressed),
+            "target_memmap_used_during_build": bool(use_memmap),
+            "target_memmap_path": str(target_memmap_path) if target_memmap_path is not None else None,
+        },
         "seed": int(args.seed),
         "val_ratio": float(args.val_ratio),
         "train_samples": int(train_indices.size),
@@ -283,7 +333,10 @@ def main() -> None:
         train_indices,
         val_indices,
         metadata,
+        compressed=compressed,
     )
+    if target_memmap_path is not None and target_memmap_path.exists():
+        target_memmap_path.unlink()
     print(json.dumps(metadata, indent=2))
 
 
