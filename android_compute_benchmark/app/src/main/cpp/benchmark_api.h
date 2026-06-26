@@ -24,6 +24,7 @@ typedef struct MlpBenchmarkConfig {
     int benchmark_iterations;
     bool use_fp16_weights;
     int load_weights_from_assets;
+    int validate_outputs;
     uint32_t seed;
     const char* shader_asset_dir;
     const char* csv_path;
@@ -44,6 +45,12 @@ typedef struct MlpBenchmarkStatus {
     int gpu_timer_supported;
     int gpu_timer_valid;
     bool use_fp16_weights;
+    // MLP-dispatch-only CPU timer (dispatch_frame + glFinish)
+    // Comparable to ShaderNN std::chrono and ORT System.nanoTime boundaries.
+    double mlp_cpu_last_ms;
+    double mlp_cpu_mean_ms;
+    double mlp_cpu_stddev_ms;
+    // Backward-compatible CPU timer with the same boundary as mlp_cpu_*.
     double cpu_last_ms;
     double cpu_mean_ms;
     double cpu_stddev_ms;

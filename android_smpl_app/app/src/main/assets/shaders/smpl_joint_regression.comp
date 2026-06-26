@@ -1,0 +1,40 @@
+
+layout(local_size_x = 24) in;
+
+#define SMPL_VERTEX_COUNT 6890
+#define SMPL_JOINT_COUNT 24
+
+layout(std430, binding = 0) readonly buffer ShapedVertices {
+    float v_shaped[];
+};
+
+layout(std430, binding = 1) readonly buffer JointRegressor {
+    float joint_regressor[];
+};
+
+layout(std430, binding = 2) writeonly buffer Joints {
+    float joints[];
+};
+
+void main() {
+    uint joint = gl_GlobalInvocationID.x;
+    if (joint >= uint(SMPL_JOINT_COUNT)) {
+        return;
+    }
+
+    vec3 value = vec3(0.0);
+    uint reg_base = joint * uint(SMPL_VERTEX_COUNT);
+    for (uint vertex = 0u; vertex < uint(SMPL_VERTEX_COUNT); ++vertex) {
+        float weight = joint_regressor[reg_base + vertex];
+        uint vertex_base = vertex * 3u;
+        value += weight * vec3(
+            v_shaped[vertex_base + 0u],
+            v_shaped[vertex_base + 1u],
+            v_shaped[vertex_base + 2u]);
+    }
+
+    uint joint_base = joint * 3u;
+    joints[joint_base + 0u] = value.x;
+    joints[joint_base + 1u] = value.y;
+    joints[joint_base + 2u] = value.z;
+}

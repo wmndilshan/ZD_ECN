@@ -1,0 +1,83 @@
+// Layer 2: 64 -> 64  (hidden-to-hidden, GELU)
+layout(local_size_x = 256) in;
+
+shared float s_input[64];
+
+layout(std430, binding = 0) readonly buffer InputBuffer {
+    float input_values[];
+};
+
+layout(std430, binding = 1) writeonly buffer OutputBuffer {
+    float output_values[];
+};
+
+#ifdef USE_FP16_WEIGHTS
+layout(std430, binding = 2) readonly buffer WeightBuffer {
+    uint packed_weights[];
+};
+#else
+layout(std430, binding = 2) readonly buffer WeightBuffer {
+    float weights[];
+};
+#endif
+
+#ifdef USE_FP16_BIASES
+layout(std430, binding = 3) readonly buffer BiasBuffer {
+    uint packed_biases[];
+};
+#else
+layout(std430, binding = 3) readonly buffer BiasBuffer {
+    float biases[];
+};
+#endif
+
+#ifdef USE_FP16_WEIGHTS
+float load_weight(uint idx) {
+    uint word = packed_weights[idx >> 1u];
+    vec2 unpacked = unpackHalf2x16(word);
+    return (idx & 1u) == 0u ? unpacked.x : unpacked.y;
+}
+#else
+float load_weight(uint idx) { return weights[idx]; }
+#endif
+
+#ifdef USE_FP16_BIASES
+float load_bias(uint idx) {
+    uint word = packed_biases[idx >> 1u];
+    vec2 unpacked = unpackHalf2x16(word);
+    return (idx & 1u) == 0u ? unpacked.x : unpacked.y;
+}
+#else
+float load_bias(uint idx) {
+    return biases[idx];
+}
+#endif
+
+void main() {
+    uint output_index = gl_GlobalInvocationID.x;
+    uint input_size = uint(INPUT_SIZE);
+    uint lid = gl_LocalInvocationID.x;
+    bool output_active = output_index < uint(OUTPUT_SIZE);
+
+    for (uint j = lid; j < input_size; j += 256u) {
+        s_input[j] = input_values[j];
+    }
+    barrier();
+    memoryBarrierShared();
+
+    if (!output_active) {
+        return;
+    }
+
+    uint base = output_index * input_size;
+    float sum = load_bias(output_index);
+    for (uint i = 0u; i < input_size; ++i) {
+        sum += s_input[i] * load_weight(base + i);
+    }
+
+    const float kAlpha = 0.7978845608;
+    const float kBeta = 0.044715;
+    float cubic = sum * sum * sum;
+    float gelu = 0.5 * sum * (1.0 + tanh(kAlpha * (sum + kBeta * cubic)));
+    output_values[output_index] = gelu;
+}

@@ -6,8 +6,9 @@ import android.opengl.GLSurfaceView
 class BenchmarkSurfaceView(
     context: Context,
     logPath: String,
+    benchmarkMode: String,
 ) : GLSurfaceView(context) {
-    private val benchmarkRenderer = BenchmarkRenderer(context.applicationContext, logPath)
+    private val benchmarkRenderer = BenchmarkRenderer(context.applicationContext, logPath, benchmarkMode)
 
     init {
         setEGLContextClientVersion(3)

@@ -1,1 +1,0 @@
-D:\GraphicsResearch\android_compute_benchmark\app\build\intermediates\cxx\Debug\2h5q2f3x\obj\arm64-v8a

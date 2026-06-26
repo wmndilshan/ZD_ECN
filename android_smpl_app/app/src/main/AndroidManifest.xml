@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature android:glEsVersion="0x00030002" android:required="true" />
+    <application android:theme="@style/AppTheme" android:label="SMPL Renderer" android:extractNativeLibs="true">
+        <activity android:name=".BenchmarkActivity" android:screenOrientation="portrait" android:exported="true" />
+        <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

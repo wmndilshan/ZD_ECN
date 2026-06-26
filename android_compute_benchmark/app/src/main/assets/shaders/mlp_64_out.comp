@@ -21,9 +21,15 @@ layout(std430, binding = 2) readonly buffer WeightBuffer {
 };
 #endif
 
+#ifdef USE_FP16_BIASES
+layout(std430, binding = 3) readonly buffer BiasBuffer {
+    uint packed_biases[];
+};
+#else
 layout(std430, binding = 3) readonly buffer BiasBuffer {
     float biases[];
 };
+#endif
 
 #ifdef USE_FP16_WEIGHTS
 float load_weight(uint idx) {
@@ -31,8 +37,28 @@ float load_weight(uint idx) {
     vec2 unpacked = unpackHalf2x16(word);
     return (idx & 1u) == 0u ? unpacked.x : unpacked.y;
 }
+vec4 load_weight4(uint idx) {
+    vec2 lo = unpackHalf2x16(packed_weights[idx >> 1u]);
+    vec2 hi = unpackHalf2x16(packed_weights[(idx >> 1u) + 1u]);
+    return vec4(lo.x, lo.y, hi.x, hi.y);
+}
 #else
 float load_weight(uint idx) { return weights[idx]; }
+vec4 load_weight4(uint idx) {
+    return vec4(weights[idx], weights[idx + 1u], weights[idx + 2u], weights[idx + 3u]);
+}
+#endif
+
+#ifdef USE_FP16_BIASES
+float load_bias(uint idx) {
+    uint word = packed_biases[idx >> 1u];
+    vec2 unpacked = unpackHalf2x16(word);
+    return (idx & 1u) == 0u ? unpacked.x : unpacked.y;
+}
+#else
+float load_bias(uint idx) {
+    return biases[idx];
+}
 #endif
 
 void main() {
@@ -52,9 +78,10 @@ void main() {
     }
 
     uint base = output_index * input_size;
-    float sum = biases[output_index];
-    for (uint i = 0u; i < input_size; ++i) {
-        sum += s_input[i] * load_weight(base + i);
+    float sum = load_bias(output_index);
+    for (uint i = 0u; i < input_size; i += 4u) {
+        sum += dot(vec4(s_input[i], s_input[i + 1u], s_input[i + 2u], s_input[i + 3u]),
+                   load_weight4(base + i));
     }
 
     output_values[output_index] = sum;

@@ -4,8 +4,13 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -17,7 +22,17 @@ import java.io.File
 
 class BenchmarkActivity : AppCompatActivity() {
     private var surfaceView: BenchmarkSurfaceView? = null
+    private var statusView: TextView? = null
+    private var activeLogFile: File? = null
+    private var benchmarkMode: String = "smpl_app"
     private var benchmarkStarted = false
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private val statusUpdater = object : Runnable {
+        override fun run() {
+            refreshStatusText()
+            statusHandler.postDelayed(this, STATUS_UPDATE_INTERVAL_MS)
+        }
+    }
 
     private val storagePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -41,16 +56,20 @@ class BenchmarkActivity : AppCompatActivity() {
         super.onResume()
         hideSystemBars()
         surfaceView?.onResume()
+        statusHandler.post(statusUpdater)
     }
 
     override fun onPause() {
+        statusHandler.removeCallbacks(statusUpdater)
         surfaceView?.onPause()
         super.onPause()
     }
 
     override fun onDestroy() {
+        statusHandler.removeCallbacks(statusUpdater)
         surfaceView?.releaseNativeResources()
         surfaceView = null
+        statusView = null
         super.onDestroy()
     }
 
@@ -75,11 +94,66 @@ class BenchmarkActivity : AppCompatActivity() {
             ).show()
         }
 
+        benchmarkMode = intent?.getStringExtra("benchmark_mode") ?: "smpl_app"
         val logFile = resolveLogFile(permissionGranted)
-        val benchmarkView = BenchmarkSurfaceView(this, logFile.absolutePath)
+        activeLogFile = logFile
+        val benchmarkView = BenchmarkSurfaceView(this, logFile.absolutePath, benchmarkMode)
+        val overlay = createStatusView(logFile)
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(0xFF030508.toInt())
+            addView(
+                benchmarkView,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            addView(overlay)
+        }
         surfaceView = benchmarkView
-        setContentView(benchmarkView)
+        statusView = overlay
+        setContentView(root)
+        refreshStatusText()
+        statusHandler.post(statusUpdater)
         hideSystemBars()
+    }
+
+    private fun createStatusView(logFile: File): TextView {
+        return TextView(this).apply {
+            text = initialStatusText(logFile)
+            setTextColor(0xFFE8F0FF.toInt())
+            setBackgroundColor(0xCC08111F.toInt())
+            textSize = 14f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setPadding(28, 24, 28, 24)
+            gravity = Gravity.START
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP,
+            )
+        }
+    }
+
+    private fun initialStatusText(logFile: File): String {
+        return buildString {
+            appendLine("ZD-ECN / SMPL Real-Time Demo")
+            appendLine("Mode: $benchmarkMode")
+            appendLine("Starting OpenGL ES compute shader pipeline…")
+            appendLine("Architecture: 144 → 64 → 64 → 20,670")
+            appendLine("Log: ${logFile.absolutePath}")
+        }
+    }
+
+    private fun refreshStatusText() {
+        val logPath = activeLogFile?.absolutePath ?: "unavailable"
+        statusView?.text = buildString {
+            appendLine("ZD-ECN / SMPL Real-Time Demo")
+            appendLine("Mode: $benchmarkMode")
+            appendLine(BenchmarkNative.statusText())
+            appendLine("Log: $logPath")
+            appendLine("Keep this screen open until phase becomes realtime.")
+        }
     }
 
     private fun keepTheScreenOn() {
@@ -117,5 +191,9 @@ class BenchmarkActivity : AppCompatActivity() {
         }
         outputFile.parentFile?.mkdirs()
         return outputFile
+    }
+
+    private companion object {
+        private const val STATUS_UPDATE_INTERVAL_MS = 500L
     }
 }

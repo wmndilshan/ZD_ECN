@@ -1,0 +1,33 @@
+{
+  "source": "models/weights_sameframe_fp16.bin",
+  "packing": "W0,b0,W1,b1,W2,b2; fp16 row-major weights [out,in], then fp16 biases [out]",
+  "layers": [
+    {
+      "layer": 0,
+      "fan_in": 144,
+      "fan_out": 64,
+      "weights_file": "weights_l0.bin",
+      "biases_file": "biases_l0.bin",
+      "weights_bytes": 18432,
+      "biases_bytes": 128
+    },
+    {
+      "layer": 1,
+      "fan_in": 64,
+      "fan_out": 64,
+      "weights_file": "weights_l1.bin",
+      "biases_file": "biases_l1.bin",
+      "weights_bytes": 8192,
+      "biases_bytes": 128
+    },
+    {
+      "layer": 2,
+      "fan_in": 64,
+      "fan_out": 20670,
+      "weights_file": "weights_l2.bin",
+      "biases_file": "biases_l2.bin",
+      "weights_bytes": 2645760,
+      "biases_bytes": 41340
+    }
+  ]
+}

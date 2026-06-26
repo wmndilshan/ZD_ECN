@@ -10,11 +10,12 @@ import javax.microedition.khronos.opengles.GL10
 class BenchmarkRenderer(
     private val context: Context,
     private val logPath: String,
+    private val benchmarkMode: String,
 ) : GLSurfaceView.Renderer {
     private var nativeReady = false
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-        nativeReady = BenchmarkNative.initialize(context.assets, logPath)
+        nativeReady = BenchmarkNative.initialize(context.assets, logPath, benchmarkMode)
         GLES31.glClearColor(0f, 0f, 0f, 1f)
         if (!nativeReady) {
             Log.w(TAG, "Native benchmark backend is unavailable; rendering stays on the Java side.")

@@ -1,0 +1,174 @@
+
+precision highp float;
+precision highp int;
+
+layout(local_size_x = 1) in;
+
+#define SMPL_JOINT_COUNT 24
+#define SMPL_POSE_BASIS_COUNT 207
+
+layout(std430, binding = 0) readonly buffer PoseAxisAngle {
+    float pose_axis_angle[];
+};
+
+layout(std430, binding = 1) readonly buffer Joints {
+    float joints[];
+};
+
+layout(std430, binding = 2) readonly buffer Parents {
+    int parents[];
+};
+
+layout(std430, binding = 3) writeonly buffer PoseFeatures {
+    float pose_features[];
+};
+
+layout(std430, binding = 4) writeonly buffer JointTransforms {
+    float joint_transforms[];
+};
+
+float read_joint_component(uint joint, uint component) {
+    return joints[joint * 3u + component];
+}
+
+void write_pose_feature(uint joint, float r[9]) {
+    if (joint == 0u) {
+        return;
+    }
+    uint base = (joint - 1u) * 9u;
+    for (uint i = 0u; i < 9u; ++i) {
+        float ident = (i == 0u || i == 4u || i == 8u) ? 1.0 : 0.0;
+        pose_features[base + i] = r[i] - ident;
+    }
+}
+
+float sin_poly_highp(float x) {
+    float x2 = x * x;
+    float x4 = x2 * x2;
+    float x6 = x4 * x2;
+    float x8 = x4 * x4;
+    return x * (1.0
+        - x2 * 0.16666666666666666
+        + x4 * 0.008333333333333333
+        - x6 * 0.0001984126984126984
+        + x8 * 0.0000027557319223985893);
+}
+
+float cos_poly_highp(float x) {
+    float x2 = x * x;
+    float x4 = x2 * x2;
+    float x6 = x4 * x2;
+    float x8 = x4 * x4;
+    return 1.0
+        - x2 * 0.5
+        + x4 * 0.041666666666666664
+        - x6 * 0.001388888888888889
+        + x8 * 0.0000248015873015873;
+}
+
+void rodrigues(uint joint, out float r[9]) {
+    uint base = joint * 3u;
+    float x = pose_axis_angle[base + 0u];
+    float y = pose_axis_angle[base + 1u];
+    float z = pose_axis_angle[base + 2u];
+    float angle = length(vec3(x, y, z) + vec3(1.0e-8));
+    vec3 axis = vec3(x, y, z) / angle;
+    float c = cos_poly_highp(angle);
+    float s = sin_poly_highp(angle);
+    float t = 1.0 - c;
+
+    r[0] = t * axis.x * axis.x + c;
+    r[1] = t * axis.x * axis.y - s * axis.z;
+    r[2] = t * axis.x * axis.z + s * axis.y;
+    r[3] = t * axis.x * axis.y + s * axis.z;
+    r[4] = t * axis.y * axis.y + c;
+    r[5] = t * axis.y * axis.z - s * axis.x;
+    r[6] = t * axis.x * axis.z - s * axis.y;
+    r[7] = t * axis.y * axis.z + s * axis.x;
+    r[8] = t * axis.z * axis.z + c;
+}
+
+void make_local_transform(uint joint, float r[9], out float m[16]) {
+    int parent = parents[joint];
+    vec3 translation = vec3(
+        read_joint_component(joint, 0u),
+        read_joint_component(joint, 1u),
+        read_joint_component(joint, 2u));
+    if (parent >= 0) {
+        uint parent_joint = uint(parent);
+        translation -= vec3(
+            read_joint_component(parent_joint, 0u),
+            read_joint_component(parent_joint, 1u),
+            read_joint_component(parent_joint, 2u));
+    }
+
+    m[0] = r[0]; m[1] = r[1]; m[2] = r[2]; m[3] = translation.x;
+    m[4] = r[3]; m[5] = r[4]; m[6] = r[5]; m[7] = translation.y;
+    m[8] = r[6]; m[9] = r[7]; m[10] = r[8]; m[11] = translation.z;
+    m[12] = 0.0; m[13] = 0.0; m[14] = 0.0; m[15] = 1.0;
+}
+
+void mat4_mul(float a[16], float b[16], out float out_m[16]) {
+    for (int row = 0; row < 4; ++row) {
+        for (int col = 0; col < 4; ++col) {
+            float value = 0.0;
+            for (int k = 0; k < 4; ++k) {
+                value += a[row * 4 + k] * b[k * 4 + col];
+            }
+            out_m[row * 4 + col] = value;
+        }
+    }
+}
+
+void main() {
+    float globals[SMPL_JOINT_COUNT * 16];
+
+    for (uint joint = 0u; joint < uint(SMPL_JOINT_COUNT); ++joint) {
+        float r[9];
+        float local_m[16];
+        float global_m[16];
+
+        rodrigues(joint, r);
+        write_pose_feature(joint, r);
+        make_local_transform(joint, r, local_m);
+
+        int parent = parents[joint];
+        if (parent < 0) {
+            for (int i = 0; i < 16; ++i) {
+                global_m[i] = local_m[i];
+            }
+        } else {
+            float parent_m[16];
+            uint parent_base = uint(parent) * 16u;
+            for (int i = 0; i < 16; ++i) {
+                parent_m[i] = globals[parent_base + uint(i)];
+            }
+            mat4_mul(parent_m, local_m, global_m);
+        }
+
+        uint global_base = joint * 16u;
+        for (int i = 0; i < 16; ++i) {
+            globals[global_base + uint(i)] = global_m[i];
+        }
+
+        vec4 rest_joint = vec4(
+            read_joint_component(joint, 0u),
+            read_joint_component(joint, 1u),
+            read_joint_component(joint, 2u),
+            0.0);
+        vec4 transformed_rest = vec4(
+            global_m[0] * rest_joint.x + global_m[1] * rest_joint.y + global_m[2] * rest_joint.z + global_m[3] * rest_joint.w,
+            global_m[4] * rest_joint.x + global_m[5] * rest_joint.y + global_m[6] * rest_joint.z + global_m[7] * rest_joint.w,
+            global_m[8] * rest_joint.x + global_m[9] * rest_joint.y + global_m[10] * rest_joint.z + global_m[11] * rest_joint.w,
+            global_m[12] * rest_joint.x + global_m[13] * rest_joint.y + global_m[14] * rest_joint.z + global_m[15] * rest_joint.w);
+
+        global_m[3] -= transformed_rest.x;
+        global_m[7] -= transformed_rest.y;
+        global_m[11] -= transformed_rest.z;
+        global_m[15] -= transformed_rest.w;
+
+        for (int i = 0; i < 16; ++i) {
+            joint_transforms[global_base + uint(i)] = global_m[i];
+        }
+    }
+}

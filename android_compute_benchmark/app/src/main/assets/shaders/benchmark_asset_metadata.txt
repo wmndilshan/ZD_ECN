@@ -1,0 +1,5 @@
+source=models/weights_real_direct_fp16.bin
+architecture=144->64->64->20670
+weights=fp16
+biases=fp16
+packing=per layer weights then biases

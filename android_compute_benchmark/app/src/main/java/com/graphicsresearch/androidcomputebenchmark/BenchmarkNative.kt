@@ -23,7 +23,7 @@ object BenchmarkNative {
         }
     }
 
-    fun initialize(assetManager: AssetManager, logPath: String): Boolean {
+    fun initialize(assetManager: AssetManager, logPath: String, benchmarkMode: String): Boolean {
         if (!libraryLoaded) {
             return false
         }
@@ -32,7 +32,7 @@ object BenchmarkNative {
         }
 
         return runCatching {
-            val ok = nativeInitialize(assetManager, logPath)
+            val ok = nativeInitialize(assetManager, logPath, benchmarkMode)
             initialized = ok
             ok
         }.getOrElse { throwable ->
@@ -65,6 +65,19 @@ object BenchmarkNative {
         }
     }
 
+    fun statusText(): String {
+        if (!libraryLoaded) {
+            return "Native library failed to load."
+        }
+
+        return runCatching {
+            nativeStatusText()
+        }.getOrElse { throwable ->
+            Log.e(TAG, "Failed to read native benchmark status", throwable)
+            "Native benchmark status unavailable."
+        }
+    }
+
     fun shutdown() {
         if (!initialized) {
             return
@@ -78,8 +91,9 @@ object BenchmarkNative {
         initialized = false
     }
 
-    private external fun nativeInitialize(assetManager: AssetManager, logPath: String): Boolean
+    private external fun nativeInitialize(assetManager: AssetManager, logPath: String, benchmarkMode: String): Boolean
     private external fun nativeResize(width: Int, height: Int)
     private external fun nativeRenderFrame()
+    private external fun nativeStatusText(): String
     private external fun nativeShutdown()
 }

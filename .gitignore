@@ -1,7 +1,82 @@
-data/
+# Python / local environment
 .venv/
-models/*
-results/*
-surreal/
-tools/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local agent/editor state
 .claude/
+.codex/
+.agents/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local notes / transient reports
+PROJECT_CONTEXT.md
+*_CONTEXT.md
+logcat_output.txt
+*.log
+
+# Datasets and generated data
+data/
+surreal/
+models/*
+!models/.gitkeep
+checkpoints/
+runs/
+artifacts/
+wandb/
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.pkl
+
+# Generated benchmark validation fixtures whose large binary payloads are external
+android_compute_benchmark/app/src/main/assets/smpl_lbs_validation_fixture/
+android_compute_benchmark/app/src/main/assets/smpl_reference_data/
+android_compute_benchmark/app/src/main/assets/smpl_shader_data/
+android_compute_benchmark/app/src/main/assets/zdecn_validation_fixture/
+
+# Benchmark outputs and paper-generated artifacts
+results/
+benchmark_results/
+runtime_comparison_results/
+smpl_lbs_results/
+
+# External repositories / vendored checkouts
+shadernn/
+shadernn_tools/
+smplx/
+reference/
+onnx_runtime_benchmark/
+tools/
+
+# Android / Gradle generated files
+.gradle/
+**/.gradle/
+**/build/
+**/.cxx/
+**/.externalNativeBuild/
+**/captures/
+local.properties
+*.apk
+*.ap_
+*.aab
+
+# Native / CMake build files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+build.ninja
+.ninja_deps
+.ninja_log
+
+# OS files
+.DS_Store
+Thumbs.db
