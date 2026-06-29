@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -142,6 +143,10 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=Path("results/paper/sameframe_small_train"))
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--checkpoint-every", type=int, default=25)
+    parser.add_argument("--final-checkpoint-window", type=int, default=50)
+    parser.add_argument("--final-checkpoint-every", type=int, default=5)
+    parser.add_argument("--cosine-final-epochs", type=int, default=100)
+    parser.add_argument("--min-lr", type=float, default=1.0e-5)
     parser.add_argument("--small-run-target-pve", type=float, default=2.5534801483154297)
     parser.add_argument("--cache-dir", type=Path)
     args = parser.parse_args()
@@ -178,6 +183,16 @@ def main() -> None:
     small_run_crossing_epoch = next((int(row["epoch"]) for row in history if row["val_pve_mm"] < args.small_run_target_pve), None)
 
     for epoch in range(start_epoch, args.epochs + 1):
+        cosine_start = max(1, args.epochs - args.cosine_final_epochs + 1)
+        if args.cosine_final_epochs > 0 and epoch >= cosine_start:
+            denominator = max(1, args.epochs - cosine_start)
+            progress = (epoch - cosine_start) / denominator
+            current_lr = args.min_lr + 0.5 * (args.lr - args.min_lr) * (1.0 + math.cos(math.pi * progress))
+        else:
+            current_lr = args.lr
+        for parameter_group in optimizer.param_groups:
+            parameter_group["lr"] = current_lr
+
         model.train()
         order = torch.randperm(train_indices.size).numpy()
         train_loss_sum = 0.0
@@ -207,6 +222,7 @@ def main() -> None:
             "train_mse": train_loss_sum / train_batches,
             "val_mse": val_loss,
             "val_pve_mm": val_pve,
+            "lr": current_lr,
             "baseline_val_pve_mm": baseline_val_pve,
             "small_run_target_pve_mm": args.small_run_target_pve,
             "below_lbs_baseline": crossed,
@@ -222,6 +238,11 @@ def main() -> None:
             "epochs": epoch,
             "batch_size": args.batch_size,
             "lr": args.lr,
+            "current_lr": current_lr,
+            "min_lr": args.min_lr,
+            "cosine_final_epochs": args.cosine_final_epochs,
+            "final_checkpoint_window": args.final_checkpoint_window,
+            "final_checkpoint_every": args.final_checkpoint_every,
             "seed": args.seed,
             "train_samples": int(train_indices.size),
             "val_samples": int(val_indices.size),
@@ -233,7 +254,13 @@ def main() -> None:
             "final_val_pve_mm": val_pve,
             "healthy_directionality": crossing_epoch is not None and crossing_epoch <= 20,
         }
-        if args.checkpoint_every > 0 and (epoch % args.checkpoint_every == 0 or epoch == args.epochs):
+        final_window_start = max(1, args.epochs - args.final_checkpoint_window + 1)
+        checkpoint_interval = (
+            args.final_checkpoint_every
+            if args.final_checkpoint_every > 0 and epoch >= final_window_start
+            else args.checkpoint_every
+        )
+        if checkpoint_interval > 0 and (epoch % checkpoint_interval == 0 or epoch == args.epochs):
             save_checkpoint(args.output_dir / f"checkpoint_epoch_{epoch:04d}.pt", model, optimizer, summary)
             save_checkpoint(args.output_dir / "checkpoint_last.pt", model, optimizer, summary)
             (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
@@ -243,6 +270,10 @@ def main() -> None:
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "lr": args.lr,
+        "min_lr": args.min_lr,
+        "cosine_final_epochs": args.cosine_final_epochs,
+        "final_checkpoint_window": args.final_checkpoint_window,
+        "final_checkpoint_every": args.final_checkpoint_every,
         "seed": args.seed,
         "train_samples": int(train_indices.size),
         "val_samples": int(val_indices.size),

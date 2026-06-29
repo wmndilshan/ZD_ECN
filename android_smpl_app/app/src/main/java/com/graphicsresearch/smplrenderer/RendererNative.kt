@@ -11,6 +11,7 @@ object RendererNative {
     external fun nativeSetFixedFrame(frame: Int, enabled: Boolean)
     external fun nativeSetCamera(yaw: Float, pitch: Float, zoom: Float)
     external fun nativeUploadExternalDelta(delta: FloatArray): Boolean
+    external fun nativeRunCombinedBenchmarkSession(session: Int, warmup: Int, iterations: Int): String
     external fun nativeStatus(): String
     external fun nativeRelease()
 }

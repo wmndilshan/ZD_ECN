@@ -1,6 +1,7 @@
 package com.graphicsresearch.smplrenderer
 
 import android.content.Context
+import android.util.Log
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -11,6 +12,7 @@ class OnnxBackend(context: Context) : AutoCloseable {
     private val session: OrtSession
     private val sessionNnapi: OrtSession?
     private val inputName: String
+    val nnapiAvailable: Boolean get() = sessionNnapi != null
 
     init {
         val bytes = context.assets.open("zdecn_fp16.onnx").use { it.readBytes() }
@@ -19,10 +21,12 @@ class OnnxBackend(context: Context) : AutoCloseable {
             val options = OrtSession.SessionOptions()
             options.addNnapi()
             env.createSession(bytes, options)
-        } catch (_: Throwable) {
+        } catch (error: Throwable) {
+            Log.w("OnnxBackend", "NNAPI session unavailable; CPU fallback will be used", error)
             null
         }
         inputName = session.inputNames.firstOrNull() ?: "input"
+        Log.i("OnnxBackend", "sessions initialized: cpu=true nnapi=${sessionNnapi != null}")
     }
 
     fun infer(rot6d: FloatArray, useNnapi: Boolean): FloatArray {

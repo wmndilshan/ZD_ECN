@@ -144,8 +144,6 @@ bool SmplGpuPipeline::init(AAssetManager* assets) {
         release();
         return false;
     }
-    lbs_readback_.resize(kOutputSize);
-    delta_readback_.resize(kOutputSize);
     initialized_ = true;
     return true;
 }
@@ -159,6 +157,16 @@ void SmplGpuPipeline::release() {
         if (program) glDeleteProgram(program);
         program = 0;
     }
+    if (combine_program_) {
+        glDeleteProgram(combine_program_);
+        combine_program_ = 0;
+    }
+    if (normals_program_) {
+        glDeleteProgram(normals_program_);
+        normals_program_ = 0;
+    }
+    combine_apply_delta_location_ = -1;
+    render_topology_ready_ = false;
     glDeleteBuffers(kBufCount, smpl_buffers_);
     glDeleteBuffers(kMlpCount, mlp_buffers_);
     if (zdecn_timer_query_) {
@@ -192,7 +200,13 @@ bool SmplGpuPipeline::loadPrograms() {
     mlp_programs_[0] = compileComputeAsset("zdecn_l0.comp", l0);
     mlp_programs_[1] = compileComputeAsset("zdecn_l1.comp", l1);
     mlp_programs_[2] = compileComputeAsset("zdecn_l2.comp", l2);
-    return mlp_programs_[0] && mlp_programs_[1] && mlp_programs_[2];
+    combine_program_ = compileComputeAsset("combine.comp", {});
+    normals_program_ = compileComputeAsset("normals.comp", {});
+    if (combine_program_) {
+        combine_apply_delta_location_ = glGetUniformLocation(combine_program_, "uApplyDelta");
+    }
+    return mlp_programs_[0] && mlp_programs_[1] && mlp_programs_[2] &&
+           combine_program_ && normals_program_ && combine_apply_delta_location_ >= 0;
 }
 
 GLuint SmplGpuPipeline::compileComputeAsset(
@@ -265,7 +279,8 @@ bool SmplGpuPipeline::uploadSmplBuffers() {
            allocateBuffer(smpl_buffers_[kBufJoints], kJointCount * 3 * sizeof(float), GL_DYNAMIC_COPY) &&
            allocateBuffer(smpl_buffers_[kBufPoseFeatures], kPoseBasisCount * sizeof(float), GL_DYNAMIC_COPY) &&
            allocateBuffer(smpl_buffers_[kBufTransforms], kJointCount * 16 * sizeof(float), GL_DYNAMIC_COPY) &&
-           allocateBuffer(smpl_buffers_[kBufOutput], kVertexCount * 3 * sizeof(float), GL_DYNAMIC_COPY);
+           allocateBuffer(smpl_buffers_[kBufOutput], kVertexCount * 3 * sizeof(float), GL_DYNAMIC_COPY) &&
+           allocateBuffer(smpl_buffers_[kBufRenderOutput], kVertexCount * 3 * sizeof(float), GL_DYNAMIC_COPY);
 }
 
 bool SmplGpuPipeline::uploadMlpBuffers() {
@@ -350,7 +365,7 @@ bool SmplGpuPipeline::dispatchZdecn(const float* rot6d_144) {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, mlp_buffers_[kMlpInput]);
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, kInputSize * sizeof(float), rot6d_144);
 
-    if (timer_supported_ && zdecn_timer_query_ != 0) {
+    if (internal_zdecn_timer_enabled_ && timer_supported_ && zdecn_timer_query_ != 0) {
         glBeginQuery(GL_TIME_ELAPSED_EXT, zdecn_timer_query_);
     }
 
@@ -377,7 +392,7 @@ bool SmplGpuPipeline::dispatchZdecn(const float* rot6d_144) {
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mlp_buffers_[kMlpBias2]);
     glDispatchCompute(static_cast<GLuint>((kOutputSize + kLocalSizeX - 1) / kLocalSizeX), 1, 1);
     glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-    if (timer_supported_ && zdecn_timer_query_ != 0) {
+    if (internal_zdecn_timer_enabled_ && timer_supported_ && zdecn_timer_query_ != 0) {
         glEndQuery(GL_TIME_ELAPSED_EXT);
         glFinish();
         auto get_query_object_ui64v =
@@ -387,7 +402,6 @@ bool SmplGpuPipeline::dispatchZdecn(const float* rot6d_144) {
             GLuint64 elapsed_ns = 0;
             get_query_object_ui64v(zdecn_timer_query_, GL_QUERY_RESULT, &elapsed_ns);
             last_zdecn_gpu_ms_ = static_cast<double>(elapsed_ns) / 1.0e6;
-            LOGI("zdecn_gpu_timer_ms=%.6f", last_zdecn_gpu_ms_);
         }
     }
     return checkGlError("dispatchZdecn");
@@ -397,47 +411,67 @@ bool SmplGpuPipeline::uploadExternalDelta(const float* delta_mm_20670) {
     if (!initialized_ || delta_mm_20670 == nullptr) return false;
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, mlp_buffers_[kMlpOutput]);
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, kOutputSize * sizeof(float), delta_mm_20670);
+    glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     return checkGlError("uploadExternalDelta");
 }
 
-bool SmplGpuPipeline::readCombinedVertices(bool apply_delta,
-                                           std::vector<float>* vertices_xyz,
-                                           SmplGpuFrameStats* stats) {
-    if (!vertices_xyz) return false;
-    const auto start = std::chrono::steady_clock::now();
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, smpl_buffers_[kBufOutput]);
-    const void* lbs_mapped = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, kOutputSize * sizeof(float), GL_MAP_READ_BIT);
-    if (!lbs_mapped) {
-        fail("glMapBufferRange failed for LBS output");
+bool SmplGpuPipeline::configureRenderTopology(const uint16_t* indices, size_t index_count) {
+    if (!initialized_ || indices == nullptr || index_count == 0 || index_count % 3 != 0) return false;
+    const size_t face_count = index_count / 3;
+    std::vector<uint32_t> faces(index_count);
+    std::vector<std::vector<uint32_t>> adjacent_faces(kVertexCount);
+    for (size_t face = 0; face < face_count; ++face) {
+        for (size_t corner = 0; corner < 3; ++corner) {
+            const uint32_t vertex = indices[face * 3 + corner];
+            if (vertex >= kVertexCount) {
+                fail("SMPL face index exceeds vertex count");
+                return false;
+            }
+            faces[face * 3 + corner] = vertex;
+            adjacent_faces[vertex].push_back(static_cast<uint32_t>(face));
+        }
+    }
+    std::vector<uint32_t> offsets(kVertexCount + 1, 0);
+    std::vector<uint32_t> incident_faces;
+    incident_faces.reserve(index_count);
+    for (int vertex = 0; vertex < kVertexCount; ++vertex) {
+        offsets[vertex] = static_cast<uint32_t>(incident_faces.size());
+        incident_faces.insert(incident_faces.end(), adjacent_faces[vertex].begin(), adjacent_faces[vertex].end());
+    }
+    offsets[kVertexCount] = static_cast<uint32_t>(incident_faces.size());
+    auto upload = [&](SmplBuffer buffer_index, const void* data, size_t bytes) {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, smpl_buffers_[buffer_index]);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, static_cast<GLsizeiptr>(bytes), data, GL_STATIC_DRAW);
+    };
+    upload(kBufFaceIndices, faces.data(), faces.size() * sizeof(uint32_t));
+    upload(kBufVertexFaceOffsets, offsets.data(), offsets.size() * sizeof(uint32_t));
+    upload(kBufVertexFaces, incident_faces.data(), incident_faces.size() * sizeof(uint32_t));
+    if (!allocateBuffer(smpl_buffers_[kBufRenderNormals], kVertexCount * 3 * sizeof(float), GL_DYNAMIC_COPY)) {
         return false;
     }
-    std::memcpy(lbs_readback_.data(), lbs_mapped, kOutputSize * sizeof(float));
-    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    if (apply_delta) {
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, mlp_buffers_[kMlpOutput]);
-        const void* delta_mapped = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, kOutputSize * sizeof(float), GL_MAP_READ_BIT);
-        if (!delta_mapped) {
-            fail("glMapBufferRange failed for ZD-ECN output");
-            return false;
-        }
-        std::memcpy(delta_readback_.data(), delta_mapped, kOutputSize * sizeof(float));
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-    }
-    vertices_xyz->resize(kOutputSize);
-    double max_delta = 0.0;
-    for (int i = 0; i < kOutputSize; ++i) {
-        const float delta_m = apply_delta ? delta_readback_[i] * 0.001f : 0.0f;
-        if (apply_delta) max_delta = std::max(max_delta, static_cast<double>(std::abs(delta_readback_[i])));
-        (*vertices_xyz)[i] = lbs_readback_[i] + delta_m;
-    }
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-    const auto end = std::chrono::steady_clock::now();
-    if (stats) {
-        stats->readback_cpu_ms = std::chrono::duration<double, std::milli>(end - start).count();
-        stats->max_abs_delta_mm = max_delta;
-    }
-    return checkGlError("readCombinedVertices");
+    render_topology_ready_ = checkGlError("configureRenderTopology");
+    return render_topology_ready_;
+}
+
+bool SmplGpuPipeline::prepareRenderBuffer(bool apply_delta) {
+    if (!initialized_ || !render_topology_ready_) return false;
+    glUseProgram(combine_program_);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, smpl_buffers_[kBufOutput]);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, mlp_buffers_[kMlpOutput]);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, smpl_buffers_[kBufRenderOutput]);
+    glUniform1i(combine_apply_delta_location_, apply_delta ? 1 : 0);
+    glDispatchCompute(static_cast<GLuint>((kVertexCount + 127) / 128), 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glUseProgram(normals_program_);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, smpl_buffers_[kBufRenderOutput]);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, smpl_buffers_[kBufFaceIndices]);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, smpl_buffers_[kBufVertexFaceOffsets]);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, smpl_buffers_[kBufVertexFaces]);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, smpl_buffers_[kBufRenderNormals]);
+    glDispatchCompute(static_cast<GLuint>((kVertexCount + 127) / 128), 1, 1);
+    glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+    return checkGlError("prepareRenderBuffer");
 }
 
 bool SmplGpuPipeline::checkGlError(const char* label) {

@@ -1,9 +1,28 @@
-#version 310 es
 layout(local_size_x = 128) in;
-layout(std430, binding=0) readonly buffer Vertices { vec4 v[]; };
-layout(std430, binding=1) writeonly buffer Normals { vec4 n[]; };
+layout(std430, binding=0) readonly buffer Vertices { float positions[]; };
+layout(std430, binding=1) readonly buffer Faces { uint face_indices[]; };
+layout(std430, binding=2) readonly buffer VertexFaceOffsets { uint face_offsets[]; };
+layout(std430, binding=3) readonly buffer VertexFaces { uint vertex_faces[]; };
+layout(std430, binding=4) writeonly buffer Normals { float normals[]; };
+
 void main() {
-    uint i = gl_GlobalInvocationID.x;
-    if (i >= 6890u) return;
-    n[i] = vec4(0.0, 0.0, 1.0, 0.0);
+    uint vertex = gl_GlobalInvocationID.x;
+    if (vertex >= 6890u) return;
+    vec3 accumulated = vec3(0.0);
+    for (uint cursor = face_offsets[vertex]; cursor < face_offsets[vertex + 1u]; ++cursor) {
+        uint face = vertex_faces[cursor];
+        uint face_base = face * 3u;
+        uint a_base = face_indices[face_base] * 3u;
+        uint b_base = face_indices[face_base + 1u] * 3u;
+        uint c_base = face_indices[face_base + 2u] * 3u;
+        vec3 a = vec3(positions[a_base], positions[a_base + 1u], positions[a_base + 2u]);
+        vec3 b = vec3(positions[b_base], positions[b_base + 1u], positions[b_base + 2u]);
+        vec3 c = vec3(positions[c_base], positions[c_base + 1u], positions[c_base + 2u]);
+        accumulated += cross(b - a, c - a);
+    }
+    vec3 normal = length(accumulated) > 1.0e-12 ? normalize(accumulated) : vec3(0.0, 0.0, 1.0);
+    uint normal_base = vertex * 3u;
+    normals[normal_base] = normal.x;
+    normals[normal_base + 1u] = normal.y;
+    normals[normal_base + 2u] = normal.z;
 }

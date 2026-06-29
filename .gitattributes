@@ -1,0 +1,27 @@
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.bin binary
+*.npz binary
+*.npy binary
+*.onnx binary
+*.pt binary
+*.pth binary
+*.pkl binary
+*.jar binary
+*.apk binary
+*.aab binary
+
+*.sh text eol=lf
+*.py text eol=lf
+*.kt text eol=lf
+*.kts text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.comp text eol=lf
+*.vert text eol=lf
+*.frag text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.csv text eol=lf

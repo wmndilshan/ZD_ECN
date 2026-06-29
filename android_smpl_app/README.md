@@ -12,13 +12,13 @@ Implemented:
 - Portrait-first mobile UI with compact backend/pose controls.
 - Touch camera controls: one-finger rotate, pinch zoom, reset view.
 - ONNX Runtime Mobile CPU path and best-effort NNAPI session path upload deltas into the GL correction buffer.
+- No-readback render path: compute combines LBS and correction into a GPU buffer reused directly as the vertex buffer.
+- Smooth normals computed on GPU from one-time vertex-to-face adjacency; no per-frame CPU geometry work.
+- BenchmarkActivity exports timestamped 5-session raw CSV, JSON, and Markdown summaries for the combined frame path.
 
 Not implemented yet:
 
 - Independent ShaderNN-style backend.
-- No-readback render path.
-- BenchmarkActivity CSV export.
-- Final 15-screenshot backend comparison set.
 
 ## Important Architecture Notes
 
@@ -63,9 +63,35 @@ Expected logcat line:
 SmplRenderer: native init GPU SSBO pipeline initialized
 ```
 
+Full combined benchmark:
+
+```bash
+ADB_SERIAL=129305554R004031 ./android_smpl_app/run_combined_benchmark.sh
+```
+
+Defaults: 5 sessions, 100 warmups/session, 1,000 measured iterations/session, and 30-second cooldowns. Output is written below `/sdcard/Android/data/com.graphicsresearch.smplrenderer/files/benchmark_results/<timestamp>/`.
+
+Short harness smoke test:
+
+```bash
+ADB_SERIAL=129305554R004031 BUILD_VARIANT=debug \
+SESSIONS=1 WARMUP=2 ITERATIONS=5 COOLDOWN_MS=0 \
+./android_smpl_app/run_combined_benchmark.sh
+```
+
+Rebuild the honest 4-backend × 3-pose screenshot matrix:
+
+```bash
+ADB_SERIAL=129305554R004031 ./android_smpl_app/capture_comparison_set.sh
+```
+
+The capture script backs up an existing comparison directory before writing. ShaderNN is excluded because no exact trained GELU backend exists, so the final set has 12 core screenshots rather than the obsolete 15-image target.
+
 Portrait UI smoke screenshot:
 
 - `results/paper/screenshots/smpl_app_portrait_polish.png`
+- `results/paper/screenshots/smpl_app_no_readback.png`
+- `results/paper/screenshots/smpl_app_no_readback_smooth.png`
 
 ## Backend IDs
 

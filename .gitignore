@@ -43,7 +43,20 @@ android_compute_benchmark/app/src/main/assets/smpl_shader_data/
 android_compute_benchmark/app/src/main/assets/zdecn_validation_fixture/
 
 # Benchmark outputs and paper-generated artifacts
-results/
+results/*
+!results/paper/
+results/paper/*
+!results/paper/figures/
+results/paper/figures/*
+!results/paper/figures/*.pdf
+!results/paper/figures/*.png
+!results/paper/figures/figure_manifest.txt
+!results/paper/screenshots/
+results/paper/screenshots/*
+!results/paper/screenshots/comparison_4x3/
+results/paper/screenshots/comparison_4x3/*
+!results/paper/screenshots/comparison_4x3/*.png
+!results/paper/screenshots/comparison_4x3/comparison_manifest.txt
 benchmark_results/
 runtime_comparison_results/
 smpl_lbs_results/
