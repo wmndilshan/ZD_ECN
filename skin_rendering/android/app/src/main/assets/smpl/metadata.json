@@ -1,0 +1,110 @@
+{
+  "source_model": "models/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl",
+  "reference_repo": "reference/smplx",
+  "reference_commit": "1265df7ba545e8b00f72e7c557c766e15c71632f",
+  "loader": "reference/smplx model object",
+  "vertex_count": 6890,
+  "joint_count": 24,
+  "num_betas": 10,
+  "pose_basis_count": 207,
+  "face_count": 13776,
+  "sparse_threshold": 0.0,
+  "joint_regressor_nnz": 236,
+  "lbs_weights_nnz": 27560,
+  "files": {
+    "v_template": {
+      "file": "v_template_f32.bin",
+      "shape": [
+        6890,
+        3
+      ],
+      "dtype": "float32",
+      "bytes": 82680
+    },
+    "shapedirs": {
+      "file": "shapedirs_10_f16.bin",
+      "shape": [
+        10,
+        6890,
+        3
+      ],
+      "dtype": "float16",
+      "bytes": 413400
+    },
+    "posedirs": {
+      "file": "posedirs_207_f16.bin",
+      "shape": [
+        207,
+        6890,
+        3
+      ],
+      "dtype": "float16",
+      "bytes": 8557380
+    },
+    "joint_regressor_offsets": {
+      "file": "joint_regressor_offsets_i32.bin",
+      "shape": [
+        25
+      ],
+      "dtype": "int32",
+      "bytes": 100
+    },
+    "joint_regressor_indices": {
+      "file": "joint_regressor_indices_i32.bin",
+      "shape": [
+        236
+      ],
+      "dtype": "int32",
+      "bytes": 944
+    },
+    "joint_regressor_weights": {
+      "file": "joint_regressor_weights_f32.bin",
+      "shape": [
+        236
+      ],
+      "dtype": "float32",
+      "bytes": 944
+    },
+    "lbs_weights_offsets": {
+      "file": "lbs_weights_offsets_i32.bin",
+      "shape": [
+        6891
+      ],
+      "dtype": "int32",
+      "bytes": 27564
+    },
+    "lbs_weights_indices": {
+      "file": "lbs_weights_indices_i32.bin",
+      "shape": [
+        27560
+      ],
+      "dtype": "int32",
+      "bytes": 110240
+    },
+    "lbs_weights_values": {
+      "file": "lbs_weights_values_f32.bin",
+      "shape": [
+        27560
+      ],
+      "dtype": "float32",
+      "bytes": 110240
+    },
+    "parents": {
+      "file": "parents_i32.bin",
+      "shape": [
+        24
+      ],
+      "dtype": "int32",
+      "bytes": 96
+    },
+    "faces": {
+      "file": "faces_u16.bin",
+      "shape": [
+        13776,
+        3
+      ],
+      "dtype": "uint16",
+      "bytes": 82656
+    }
+  }
+}

@@ -1,0 +1,46 @@
+
+layout(local_size_x = 256) in;
+
+#define SMPL_VERTEX_COUNT 6890
+#define SMPL_NUM_BETAS 10
+
+layout(std430, binding = 0) readonly buffer TemplateVertices {
+    float v_template[];
+};
+
+layout(std430, binding = 1) readonly buffer ShapeDirs {
+    float shapedirs[];
+};
+
+layout(std430, binding = 2) readonly buffer Betas {
+    float betas[];
+};
+
+layout(std430, binding = 3) writeonly buffer ShapedVertices {
+    float v_shaped[];
+};
+
+void main() {
+    uint vertex = gl_GlobalInvocationID.x;
+    if (vertex >= uint(SMPL_VERTEX_COUNT)) {
+        return;
+    }
+
+    uint vertex_base = vertex * 3u;
+    vec3 value = vec3(
+        v_template[vertex_base + 0u],
+        v_template[vertex_base + 1u],
+        v_template[vertex_base + 2u]);
+
+    for (uint beta = 0u; beta < uint(SMPL_NUM_BETAS); ++beta) {
+        uint base = (beta * uint(SMPL_VERTEX_COUNT) + vertex) * 3u;
+        value += betas[beta] * vec3(
+            shapedirs[base + 0u],
+            shapedirs[base + 1u],
+            shapedirs[base + 2u]);
+    }
+
+    v_shaped[vertex_base + 0u] = value.x;
+    v_shaped[vertex_base + 1u] = value.y;
+    v_shaped[vertex_base + 2u] = value.z;
+}

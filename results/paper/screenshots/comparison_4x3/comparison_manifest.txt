@@ -1,0 +1,16 @@
+Protocol: fixed-frame portrait screenshots, smooth GPU normals, no CPU vertex readback
+Pose frames: natural=80, moderate=280, extreme=470
+native_natural.png
+native_moderate.png
+native_extreme.png
+onnx_cpu_natural.png
+onnx_cpu_moderate.png
+onnx_cpu_extreme.png
+onnx_nnapi_natural.png
+onnx_nnapi_moderate.png
+onnx_nnapi_extreme.png
+lbs_only_natural.png
+lbs_only_moderate.png
+lbs_only_extreme.png
+comparison_contact_sheet.png
+NNAPI session creation: confirmed (OnnxBackend log: cpu=true nnapi=true)

@@ -67,7 +67,7 @@ shadernn_tools/
 smplx/
 reference/
 onnx_runtime_benchmark/
-tools/
+/tools/
 
 # Android / Gradle generated files
 .gradle/
@@ -76,6 +76,7 @@ tools/
 **/.cxx/
 **/.externalNativeBuild/
 **/captures/
+**/.kotlin/
 local.properties
 *.apk
 *.ap_
@@ -90,6 +91,13 @@ build.ninja
 .ninja_deps
 .ninja_log
 
+# zd_ecn_motion host-built playback library and test binary (make in native/)
+zd_ecn_motion/native/*.so
+zd_ecn_motion/native/test_playback_native
+
 # OS files
 .DS_Store
 Thumbs.db
+
+# Secrets
+.env

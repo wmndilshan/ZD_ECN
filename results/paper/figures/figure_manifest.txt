@@ -1,0 +1,17 @@
+fig_dataset_distribution: PRESENT
+fig_convergence: PRESENT
+fig_baseline_comparison: PRESENT
+fig_perjoint_pve: PRESENT
+fig_pve_vs_difficulty: PRESENT
+fig_error_distribution: PRESENT
+fig_vertex_heatmap: PRESENT
+fig_latency_cdf: PRESENT
+fig_session_stability: PRESENT
+fig_roofline: PRESENT
+fig_fp16_error: PRESENT
+fig_onnx_comparison: PRESENT
+fig_finegrained_pareto: PRESENT
+fig_shader_variants: PRESENT
+fig_perceptual_threshold: PRESENT
+fig_beta_generalisation: MISSING
+fig_beta_generalisation: FAILED — alpha must be numeric or None, not <class 'list'>

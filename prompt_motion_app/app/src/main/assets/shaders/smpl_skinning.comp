@@ -1,0 +1,77 @@
+
+layout(local_size_x = 256) in;
+
+#define SMPL_VERTEX_COUNT 6890
+#define SMPL_JOINT_COUNT 24
+#define SMPL_POSE_BASIS_COUNT 207
+
+layout(std430, binding = 0) readonly buffer ShapedVertices {
+    float v_shaped[];
+};
+
+layout(std430, binding = 1) readonly buffer PoseDirs {
+    float posedirs[];
+};
+
+layout(std430, binding = 2) readonly buffer PoseFeatures {
+    float pose_features[];
+};
+
+layout(std430, binding = 3) readonly buffer LbsWeights {
+    float lbs_weights[];
+};
+
+layout(std430, binding = 4) readonly buffer JointTransforms {
+    float joint_transforms[];
+};
+
+layout(std430, binding = 5) writeonly buffer OutputVertices {
+    float vertices[];
+};
+
+void main() {
+    uint vertex = gl_GlobalInvocationID.x;
+    if (vertex >= uint(SMPL_VERTEX_COUNT)) {
+        return;
+    }
+
+    uint vertex_base = vertex * 3u;
+    vec3 v_posed = vec3(
+        v_shaped[vertex_base + 0u],
+        v_shaped[vertex_base + 1u],
+        v_shaped[vertex_base + 2u]);
+
+    for (uint pose_idx = 0u; pose_idx < uint(SMPL_POSE_BASIS_COUNT); ++pose_idx) {
+        uint base = (pose_idx * uint(SMPL_VERTEX_COUNT) + vertex) * 3u;
+        v_posed += pose_features[pose_idx] * vec3(
+            posedirs[base + 0u],
+            posedirs[base + 1u],
+            posedirs[base + 2u]);
+    }
+
+    vec4 v_homo = vec4(v_posed, 1.0);
+    vec3 skinned = vec3(0.0);
+
+    for (uint joint = 0u; joint < uint(SMPL_JOINT_COUNT); ++joint) {
+        float weight = lbs_weights[vertex * uint(SMPL_JOINT_COUNT) + joint];
+        uint base = joint * 16u;
+        vec3 transformed = vec3(
+            joint_transforms[base + 0u] * v_homo.x +
+                joint_transforms[base + 1u] * v_homo.y +
+                joint_transforms[base + 2u] * v_homo.z +
+                joint_transforms[base + 3u] * v_homo.w,
+            joint_transforms[base + 4u] * v_homo.x +
+                joint_transforms[base + 5u] * v_homo.y +
+                joint_transforms[base + 6u] * v_homo.z +
+                joint_transforms[base + 7u] * v_homo.w,
+            joint_transforms[base + 8u] * v_homo.x +
+                joint_transforms[base + 9u] * v_homo.y +
+                joint_transforms[base + 10u] * v_homo.z +
+                joint_transforms[base + 11u] * v_homo.w);
+        skinned += weight * transformed;
+    }
+
+    vertices[vertex_base + 0u] = skinned.x;
+    vertices[vertex_base + 1u] = skinned.y;
+    vertices[vertex_base + 2u] = skinned.z;
+}

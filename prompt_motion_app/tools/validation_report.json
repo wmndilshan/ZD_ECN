@@ -1,0 +1,102 @@
+[
+  {
+    "prompt": "Walk forward, turn left, jump, land, and return to idle",
+    "frames": 189,
+    "scale_gen_to_smpl": 1.0787,
+    "pve_lbs_mm": 5.5136,
+    "pve_zdecn_mm": 2.6992,
+    "pve_zdecn_p95_mm": 3.3649,
+    "improvement_pct": 51.04,
+    "planted_min_z_mm": [
+      -1.4,
+      -0.1
+    ],
+    "max_air_z_mm": 426.3,
+    "upright_all_frames": true,
+    "facing_world_dir_f0": [
+      0.0,
+      -0.15000000596046448,
+      0.9900000095367432
+    ]
+  },
+  {
+    "prompt": "Perform traditional dance",
+    "frames": 330,
+    "scale_gen_to_smpl": 1.0787,
+    "pve_lbs_mm": 6.7124,
+    "pve_zdecn_mm": 4.5873,
+    "pve_zdecn_p95_mm": 5.1276,
+    "improvement_pct": 31.66,
+    "planted_min_z_mm": [
+      -2.5,
+      2.0
+    ],
+    "max_air_z_mm": 2.0,
+    "upright_all_frames": true,
+    "facing_world_dir_f0": [
+      0.0,
+      -0.23000000417232513,
+      0.9700000286102295
+    ]
+  },
+  {
+    "prompt": "squat deeply then jump high then land",
+    "frames": 99,
+    "scale_gen_to_smpl": 1.0787,
+    "pve_lbs_mm": 5.7931,
+    "pve_zdecn_mm": 2.9525,
+    "pve_zdecn_p95_mm": 3.4929,
+    "improvement_pct": 49.03,
+    "planted_min_z_mm": [
+      -1.5,
+      -0.4
+    ],
+    "max_air_z_mm": 615.5,
+    "upright_all_frames": true,
+    "facing_world_dir_f0": [
+      0.0,
+      -0.18000000715255737,
+      0.9800000190734863
+    ]
+  },
+  {
+    "prompt": "walk forward for 3 seconds, turn around, walk forward",
+    "frames": 180,
+    "scale_gen_to_smpl": 1.0787,
+    "pve_lbs_mm": 5.4926,
+    "pve_zdecn_mm": 2.7209,
+    "pve_zdecn_p95_mm": 3.0129,
+    "improvement_pct": 50.46,
+    "planted_min_z_mm": [
+      -2.2,
+      0.2
+    ],
+    "max_air_z_mm": 0.2,
+    "upright_all_frames": true,
+    "facing_world_dir_f0": [
+      0.0,
+      -0.15000000596046448,
+      0.9900000095367432
+    ]
+  },
+  {
+    "prompt": "Michael Jackson style dance",
+    "frames": 330,
+    "scale_gen_to_smpl": 1.0787,
+    "pve_lbs_mm": 6.139,
+    "pve_zdecn_mm": 3.5158,
+    "pve_zdecn_p95_mm": 4.6585,
+    "improvement_pct": 42.73,
+    "planted_min_z_mm": [
+      -10.5,
+      -0.2
+    ],
+    "max_air_z_mm": -0.2,
+    "upright_all_frames": true,
+    "facing_world_dir_f0": [
+      0.0,
+      -0.1899999976158142,
+      0.9800000190734863
+    ]
+  }
+]
